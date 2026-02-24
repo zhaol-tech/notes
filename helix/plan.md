@@ -125,7 +125,7 @@ This section maps each Helix requirement to the current SGLang implementation, i
 
 **Gap:** Helix requires **two different TP widths within a single layer**: TPA for QKV projection and N (= KVP × TPA) for o_proj and FFN. There is no mechanism to configure per-layer or per-sublayer TP widths. No `helix_kvp_size` or `helix_tpa_size` parameters exist.
 
-### 4.2 Process Groups
+### 3.2 Process Groups
 
 **Current logic:** `parallel_state.py` creates several process groups via `initialize_model_parallel()`:
 - `_TP` — main tensor parallel group (all TP ranks)
@@ -145,7 +145,7 @@ Accessor functions: `get_tp_group()`, `get_attn_tp_group()`, `get_attn_cp_group(
 - **TPA group** — GPUs with the same KVP rank but different TPA ranks (for potential intra-attention TP). Could reuse `_ATTN_TP` if configured correctly, but the rank layout math differs from dp_attention's layout.
 - The existing `_TP` group (all N GPUs) can serve as the TPF group for FFN.
 
-### 4.3 Weight Sharding & Loading
+### 3.3 Weight Sharding & Loading
 
 **Current logic:** Linear layers accept optional `tp_rank` and `tp_size` in their constructors (`linear.py:277-329` for ColumnParallel, `linear.py:1306-1321` for RowParallel). If not provided, they default to the global TP state. Weight loaders compute `start_idx = tp_rank * shard_size` to extract the correct shard from checkpoint weights.
 
@@ -191,7 +191,7 @@ kv_indices = self.req_to_token_pool.req_to_token[req.req_pool_idx, : len(token_i
 ```
 where `token_ids` has global length. With compact-local `req_to_token`, reading up to `len(token_ids)` (global count) would read past `local_kv_len` into uninitialized/zero entries, causing incorrect cache insertions and pool corruption. Similarly, `cache_unfinished_req()` (`radix_cache.py:499-500`) uses the same global-length indexing pattern. See section 4.4g for the mitigation.
 
-### 4.5 Attention Phase
+### 3.5 Attention Phase
 
 **Current logic:** `RadixAttention.forward()` (`radix_attention.py:99-135`) delegates to `attn_backend.forward()`, which dispatches to `forward_decode()` for decode mode. The attention backend:
 1. Stores new K,V in the KV cache
@@ -216,7 +216,7 @@ The Triton backend's two-stage decode kernel (`decode_attention.py`) already sep
 3. **No rescale-and-sum merge across GPUs.** The flash-decoding merge formula exists in the stage 2 kernel but only operates on intra-GPU splits. A cross-GPU version is needed.
 4. **Head counts are tied to global TP.** `RadixAttention` computes `tp_q_head_num = total_heads // tp_size`. For Helix, q heads per GPU should be `total_heads // TPA` during local attention, then `total_heads // N` after the All-to-All. The layer needs to be aware of both counts.
 
-### 4.6 FFN Phase
+### 3.6 FFN Phase
 
 **Current logic:** `LlamaMLP` (`llama.py:65-116`) uses:
 - `MergedColumnParallelLinear` for `gate_up_proj` — shards output dim by global TP
@@ -253,7 +253,7 @@ Residual connections handled by fused RMSNorm.
 
 **Gap:** `LlamaAttention.forward()` needs to be modified to insert the All-to-All + rescale step between `RadixAttention` output and `o_proj`. The attention output shape changes from `[B, H/TP]` (standard) to `[B, Q/TPA * Hsz]` (partial, pre-merge) to `[B, H/N]` (post-merge, ready for o_proj). The model must be Helix-aware to orchestrate this transition. This pattern must be replicated in every model file that defines its own attention class (not just Llama).
 
-### 4.8 CUDA Graphs
+### 3.8 CUDA Graphs
 
 **Current logic:** `CudaGraphRunner` (`cuda_graph_runner.py`) captures the entire model forward pass as a CUDA graph for each batch size. During replay, input tensors are copied into pre-allocated buffers, the graph executes, and output is sliced. Graph capture calls `attn_backend.init_forward_metadata_capture_cuda_graph()`.
 
