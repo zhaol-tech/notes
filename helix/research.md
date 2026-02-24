@@ -747,6 +747,3 @@ MHATokenToKVPool
 6. **Fused operations**: `MergedColumnParallelLinear` (gate+up), `SiluAndMul` (activation+multiply), and fused MoE kernels minimize memory round-trips.
 
 7. **Backend flexibility**: The registry system allows swapping attention implementations (FlashInfer, Triton, TRT-LLM, etc.) without changing model code.
-<!--stackedit_data:
-eyJoaXN0b3J5IjpbLTUwODY1MzcwMV19
--->
