@@ -1,5 +1,3 @@
-Here is a review of your understanding, addressing your questions, correcting the technical mechanics, and reorganizing everything into a clean, step-by-step pipeline.
-
 ### 1. Pointing Out Mistakes
 
 -   **Terminology for Heads vs. Dimension:** You used $H$ to represent query heads, but in the paper (and standard Transformer math), $H$ is the **Hidden Dimension** (e.g., 4096). Let's use **$Q$** for Query Heads and **$K$** for KV Heads.
